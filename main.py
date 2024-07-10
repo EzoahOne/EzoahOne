@@ -1,9 +1,11 @@
-import logging
 import os
+import logging
 import re
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
-from flask import Flask, request
+
+app = Flask(__name__)
 
 # Enable logging
 logging.basicConfig(
@@ -35,12 +37,10 @@ data_bundles = {
     '50GB': 'GHC 247',
 }
 
-# Flask setup
-app = Flask(__name__)
-
 # Create the Telegram application
-application = ApplicationBuilder().token('YOUR_TELEGRAM_BOT_TOKEN').build()
+application = ApplicationBuilder().token('7495200095:AAFfOdaXgMcThxjZGiEJctlpQO6j5F1Wacc').build()
 
+# Define handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard = [
         [
@@ -118,7 +118,7 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_ph
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.process_update(update)
-    return "OK"
+    return 'OK'
 
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+if __name__ == '__main__':
+    app.run(port=8443, debug=True)
