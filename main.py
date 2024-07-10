@@ -1,5 +1,3 @@
-New code
-
 import logging
 import re
 from flask import Flask, request
