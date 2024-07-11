@@ -1,9 +1,9 @@
+import os
 import logging
 import re
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
-import os
 
 # Enable logging
 logging.basicConfig(
@@ -11,18 +11,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Flask app setup
-app = Flask(__name__)
-
 # Define states
 CHOOSE_BUNDLE, ENTER_PHONE, UPLOAD_SCREENSHOT, CONFIRM_RECEIPT = range(4)
 
-# Define your worker's Telegram user ID and your own Telegram user ID
-WORKER_ID = os.getenv('WORKER_ID')
-YOUR_ID = os.getenv('YOUR_ID')
-
-# Define your MoMo number
-MOMO_NUMBER = os.getenv('MOMO_NUMBER')
+# Load environment variables
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+WORKER_ID = os.getenv("WORKER_ID")
+YOUR_ID = os.getenv("YOUR_ID")
+MOMO_NUMBER = os.getenv("MOMO_NUMBER")
 
 # Define a dictionary to store user data temporarily
 user_data = {}
@@ -38,6 +34,13 @@ data_bundles = {
     '50GB': 'GHC 247',
 }
 
+# Flask app
+app = Flask(__name__)
+
+# Create the Telegram application
+application = ApplicationBuilder().token(TOKEN).build()
+
+# Define handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard = [
         [
@@ -107,23 +110,12 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
-# Initialize Telegram bot and set webhook
-@app.route('/set_webhook', methods=['GET', 'POST'])
-def set_webhook():
-    telegram_token = os.getenv('TELEGRAM_TOKEN')
-    bot = ApplicationBuilder().token(telegram_token).build().bot
-    webhook_url = f"https://{request.host}/webhook/{telegram_token}"
-    bot.set_webhook(url=webhook_url)
-    return "Webhook set", 200
-
-@app.route('/webhook/<token>', methods=['POST'])
-def webhook(token):
-    if token != os.getenv('TELEGRAM_TOKEN'):
-        return "Unauthorized", 403
-
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
+# Entry point for Flask to receive webhook updates
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.process_update(update)
     return "OK", 200
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+if __name__ == "__main__":
+    app.run(port=8443)
