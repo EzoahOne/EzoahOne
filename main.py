@@ -1,17 +1,18 @@
-import os
 import logging
 import re
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
-
-app = Flask(__name__)
+import os
 
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Flask app setup
+app = Flask(__name__)
 
 # Define states
 CHOOSE_BUNDLE, ENTER_PHONE, UPLOAD_SCREENSHOT, CONFIRM_RECEIPT = range(4)
@@ -37,10 +38,6 @@ data_bundles = {
     '50GB': 'GHC 247',
 }
 
-# Create the Telegram application
-application = ApplicationBuilder().token('7495200095:AAFfOdaXgMcThxjZGiEJctlpQO6j5F1Wacc').build()
-
-# Define handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard = [
         [
@@ -110,15 +107,21 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+    return UPLOAD_SCREENSHOT
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.process_update(update)
-    return 'OK'
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return 'ok'
 
 if __name__ == '__main__':
-    app.run(port=8443, debug=True)
+    TOKEN = "7495200095:AAFfOdaXgMcThxjZGiEJctlpQO6j5F1Wacc"
+    bot = ApplicationBuilder().token(TOKEN).build()
+
+    # Add handlers
+    bot.add_handler(CommandHandler("start", start))
+    bot.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
+    bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+
+    bot.run_polling()
