@@ -2,7 +2,7 @@ import os
 import logging
 from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackContext, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import CallbackContext, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 from telegram.ext import Updater
 
 # Initialize Flask app
