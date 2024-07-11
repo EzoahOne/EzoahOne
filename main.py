@@ -4,7 +4,6 @@ import re
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
-from werkzeug.urls import url_quote_plus  # Import url_quote_plus from werkzeug.urls
 
 app = Flask(__name__)
 
@@ -96,7 +95,7 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         logger.error(f"Failed to send message to worker: {e}")
 
     # Send the beneficiary number, selected bundle, and price to you
-    user_message = f"New order received\nBundle: {bundle} - {price}\nBeneficiary's phone number: {url_quote_plus(phone_number)}"
+    user_message = f"New order received\nBundle: {bundle} - {price}\nBeneficiary's phone number: {phone_number}"
     try:
         await context.bot.send_message(chat_id=YOUR_ID, text=user_message, reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("Payment Made", callback_data=f'payment_{user_id}')]]))
@@ -126,6 +125,19 @@ def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.process_update(update)
     return "OK", 200
+
+@app.route('/set_webhook', methods=['GET', 'POST'])
+def set_webhook():
+    token = os.getenv("TELEGRAM_TOKEN")
+    url = f"https://cdbs-bot.herokuapp.com/webhook"
+    response = requests.post(
+        f"https://api.telegram.org/bot{token}/setWebhook",
+        data={"url": url}
+    )
+    if response.status_code == 200:
+        return "Webhook set successfully!"
+    else:
+        return "Webhook setting failed!"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
