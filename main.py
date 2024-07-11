@@ -1,9 +1,10 @@
 import os
 import logging
-import re
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+
+app = Flask(__name__)
 
 # Enable logging
 logging.basicConfig(
@@ -14,11 +15,12 @@ logger = logging.getLogger(__name__)
 # Define states
 CHOOSE_BUNDLE, ENTER_PHONE, UPLOAD_SCREENSHOT, CONFIRM_RECEIPT = range(4)
 
-# Load environment variables
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-WORKER_ID = os.getenv("WORKER_ID")
-YOUR_ID = os.getenv("YOUR_ID")
-MOMO_NUMBER = os.getenv("MOMO_NUMBER")
+# Define your worker's Telegram user ID and your own Telegram user ID
+WORKER_ID = '349002878'
+YOUR_ID = '2058207928'
+
+# Define your MoMo number
+MOMO_NUMBER = '0543226313'
 
 # Define a dictionary to store user data temporarily
 user_data = {}
@@ -34,13 +36,6 @@ data_bundles = {
     '50GB': 'GHC 247',
 }
 
-# Flask app
-app = Flask(__name__)
-
-# Create the Telegram application
-application = ApplicationBuilder().token(TOKEN).build()
-
-# Define handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard = [
         [
@@ -110,12 +105,19 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
-# Entry point for Flask to receive webhook updates
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    """Set up the webhook endpoint for Telegram"""
+    token = os.getenv("TELEGRAM_TOKEN")
+    application = ApplicationBuilder().token(token).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.process_update(update)
     return "OK", 200
 
 if __name__ == "__main__":
-    app.run(port=8443)
+    app.run(debug=True)
