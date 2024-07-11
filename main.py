@@ -1,9 +1,8 @@
 import os
 import logging
-import re
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackContext, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
 app = Flask(__name__)
 
@@ -14,7 +13,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Define states
-CHOOSE_BUNDLE, ENTER_PHONE = range(2)
+CHOOSE_BUNDLE, ENTER_PHONE, UPLOAD_SCREENSHOT, CONFIRM_RECEIPT = range(4)
 
 # Define your worker's Telegram user ID and your own Telegram user ID
 WORKER_ID = '349002878'
@@ -37,7 +36,7 @@ data_bundles = {
     '50GB': 'GHC 247',
 }
 
-async def start(update: Update, context: CallbackContext) -> int:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard = [
         [
             InlineKeyboardButton("10 GB - GHC 72", callback_data='10GB'),
@@ -60,7 +59,7 @@ async def start(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text('Please choose a data bundle package:', reply_markup=reply_markup)
     return CHOOSE_BUNDLE
 
-async def choose_bundle(update: Update, context: CallbackContext) -> int:
+async def choose_bundle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
 
@@ -71,7 +70,7 @@ async def choose_bundle(update: Update, context: CallbackContext) -> int:
         text=f"Selected bundle: {query.data} - {data_bundles[query.data]}\nPlease enter the beneficiary's phone number:")
     return ENTER_PHONE
 
-async def enter_phone(update: Update, context: CallbackContext) -> int:
+async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     phone_number = update.message.text
 
@@ -105,6 +104,10 @@ async def enter_phone(update: Update, context: CallbackContext) -> int:
     # Send MoMo number to the user for payment
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
+
+@app.route('/')
+def index():
+    return 'Welcome to my Telegram bot!'
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
