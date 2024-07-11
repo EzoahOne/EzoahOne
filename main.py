@@ -1,15 +1,14 @@
 import os
 import logging
-from flask import Flask, request
+import requests
+from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, Filters, Updater
 
 app = Flask(__name__)
 
 # Enable logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
-)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Define states
@@ -36,7 +35,7 @@ data_bundles = {
     '50GB': 'GHC 247',
 }
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+def start(update: Update, context):
     keyboard = [
         [
             InlineKeyboardButton("10 GB - GHC 72", callback_data='10GB'),
@@ -56,27 +55,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('Please choose a data bundle package:', reply_markup=reply_markup)
+    update.message.reply_text('Please choose a data bundle package:', reply_markup=reply_markup)
     return CHOOSE_BUNDLE
 
-async def choose_bundle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+def choose_bundle(update: Update, context):
     query = update.callback_query
-    await query.answer()
+    query.answer()
 
     # Save the selected bundle in user_data
     user_data[query.from_user.id] = {'bundle': query.data, 'price': data_bundles[query.data]}
 
-    await query.edit_message_text(
+    query.edit_message_text(
         text=f"Selected bundle: {query.data} - {data_bundles[query.data]}\nPlease enter the beneficiary's phone number:")
     return ENTER_PHONE
 
-async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+def enter_phone(update: Update, context):
     user_id = update.message.from_user.id
     phone_number = update.message.text
 
     # Validate phone number (only digits and length check)
-    if not re.match(r'^\d+$', phone_number) or len(phone_number) < 7 or len(phone_number) > 15:
-        await update.message.reply_text('Please enter a valid phone number (digits only).')
+    if not phone_number.isdigit() or not (7 <= len(phone_number) <= 15):
+        update.message.reply_text('Please enter a valid phone number (digits only).')
         return ENTER_PHONE
 
     # Get the selected bundle and price from user_data
@@ -89,20 +88,20 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     # Send the beneficiary number and selected bundle to the worker
     worker_message = f"New order received\nBundle: {bundle}\nBeneficiary's phone number: {phone_number}"
     try:
-        await context.bot.send_message(chat_id=WORKER_ID, text=worker_message)
+        context.bot.send_message(chat_id=WORKER_ID, text=worker_message)
     except Exception as e:
         logger.error(f"Failed to send message to worker: {e}")
 
     # Send the beneficiary number, selected bundle, and price to you
     user_message = f"New order received\nBundle: {bundle} - {price}\nBeneficiary's phone number: {phone_number}"
     try:
-        await context.bot.send_message(chat_id=YOUR_ID, text=user_message, reply_markup=InlineKeyboardMarkup(
+        context.bot.send_message(chat_id=YOUR_ID, text=user_message, reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("Payment Made", callback_data=f'payment_{user_id}')]]))
     except Exception as e:
         logger.error(f"Failed to send message to you: {e}")
 
     # Send MoMo number to the user for payment
-    await update.message.reply_text(
+    update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
 @app.route('/')
@@ -113,15 +112,15 @@ def index():
 def webhook():
     """Set up the webhook endpoint for Telegram"""
     token = os.getenv("TELEGRAM_TOKEN")
-    application = ApplicationBuilder().token(token).build()
+    url = f"https://api.telegram.org/bot{token}/setWebhook"
+    current_url = request.url_root + 'webhook'
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+    response = requests.post(url, json={'url': current_url})
 
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.process_update(update)
-    return "OK", 200
+    if response.ok:
+        return jsonify({"status": "success", "message": "Webhook has been set successfully."}), 200
+    else:
+        return jsonify({"status": "error", "message": "Failed to set webhook."}), 400
 
 if __name__ == "__main__":
     app.run(debug=True)
