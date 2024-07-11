@@ -14,7 +14,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Define states
-CHOOSE_BUNDLE, ENTER_PHONE, UPLOAD_SCREENSHOT, CONFIRM_RECEIPT = range(4)
+CHOOSE_BUNDLE, ENTER_PHONE = range(2)
 
 # Define your worker's Telegram user ID and your own Telegram user ID
 WORKER_ID = '349002878'
@@ -105,6 +105,8 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     # Send MoMo number to the user for payment
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
+
+    return None
 
 @app.route('/')
 def index():
