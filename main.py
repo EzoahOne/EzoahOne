@@ -4,6 +4,7 @@ import re
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+from werkzeug.urls import url_quote_plus  # Import url_quote_plus from werkzeug.urls
 
 app = Flask(__name__)
 
@@ -95,7 +96,7 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         logger.error(f"Failed to send message to worker: {e}")
 
     # Send the beneficiary number, selected bundle, and price to you
-    user_message = f"New order received\nBundle: {bundle} - {price}\nBeneficiary's phone number: {phone_number}"
+    user_message = f"New order received\nBundle: {bundle} - {price}\nBeneficiary's phone number: {url_quote_plus(phone_number)}"
     try:
         await context.bot.send_message(chat_id=YOUR_ID, text=user_message, reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("Payment Made", callback_data=f'payment_{user_id}')]]))
