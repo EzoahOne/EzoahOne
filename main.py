@@ -18,11 +18,11 @@ app = Flask(__name__)
 CHOOSE_BUNDLE, ENTER_PHONE, UPLOAD_SCREENSHOT, CONFIRM_RECEIPT = range(4)
 
 # Define your worker's Telegram user ID and your own Telegram user ID
-WORKER_ID = '349002878'
-YOUR_ID = '2058207928'
+WORKER_ID = os.getenv('WORKER_ID')
+YOUR_ID = os.getenv('YOUR_ID')
 
 # Define your MoMo number
-MOMO_NUMBER = '0543226313'
+MOMO_NUMBER = os.getenv('MOMO_NUMBER')
 
 # Define a dictionary to store user data temporarily
 user_data = {}
@@ -107,21 +107,23 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
-    return UPLOAD_SCREENSHOT
+# Initialize Telegram bot and set webhook
+@app.route('/set_webhook', methods=['GET', 'POST'])
+def set_webhook():
+    telegram_token = os.getenv('TELEGRAM_TOKEN')
+    bot = ApplicationBuilder().token(telegram_token).build().bot
+    webhook_url = f"https://{request.host}/webhook/{telegram_token}"
+    bot.set_webhook(url=webhook_url)
+    return "Webhook set", 200
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
+@app.route('/webhook/<token>', methods=['POST'])
+def webhook(token):
+    if token != os.getenv('TELEGRAM_TOKEN'):
+        return "Unauthorized", 403
+
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
-    return 'ok'
+    return "OK", 200
 
 if __name__ == '__main__':
-    TOKEN = "7495200095:AAFfOdaXgMcThxjZGiEJctlpQO6j5F1Wacc"
-    bot = ApplicationBuilder().token(TOKEN).build()
-
-    # Add handlers
-    bot.add_handler(CommandHandler("start", start))
-    bot.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
-    bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
-
-    bot.run_polling()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
