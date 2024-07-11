@@ -1,19 +1,17 @@
 import os
 import logging
-from flask import Flask, request, jsonify
+import re
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from telegram.ext import Updater
 
-# Initialize Flask app
 app = Flask(__name__)
 
 # Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
 logger = logging.getLogger(__name__)
-
-# Your Telegram bot token (replace with your actual token or use environment variable)
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 # Define states
 CHOOSE_BUNDLE, ENTER_PHONE = range(2)
@@ -38,10 +36,6 @@ data_bundles = {
     '40GB': 'GHC 195',
     '50GB': 'GHC 247',
 }
-
-# Initialize Telegram Updater
-updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
-dispatcher = updater.dispatcher
 
 async def start(update: Update, context: CallbackContext) -> int:
     keyboard = [
@@ -82,7 +76,7 @@ async def enter_phone(update: Update, context: CallbackContext) -> int:
     phone_number = update.message.text
 
     # Validate phone number (only digits and length check)
-    if not phone_number.isdigit() or not (7 <= len(phone_number) <= 15):
+    if not re.match(r'^\d+$', phone_number) or len(phone_number) < 7 or len(phone_number) > 15:
         await update.message.reply_text('Please enter a valid phone number (digits only).')
         return ENTER_PHONE
 
@@ -112,13 +106,19 @@ async def enter_phone(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
-@app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def webhook():
-    """Webhook endpoint for receiving updates from Telegram"""
-    update = Update.de_json(request.get_json(force=True), updater.bot)
-    dispatcher.process_update(update)
-    return 'OK'
+    """Set up the webhook endpoint for Telegram"""
+    token = os.getenv("TELEGRAM_TOKEN")
+    application = ApplicationBuilder().token(token).build()
 
-if __name__ == '__main__':
-    # Start the webhook on Heroku
-    app.run(port=int(os.environ.get('PORT', 5000)))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.process_update(update)
+    return "OK", 200
+
+if __name__ == "__main__":
+    app.run(debug=True)
