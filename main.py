@@ -9,13 +9,12 @@ app = Flask(__name__)
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
 # Define states
-CHOOSE_BUNDLE, ENTER_PHONE = range(2)
+CHOOSE_BUNDLE, ENTER_PHONE, UPLOAD_SCREENSHOT, CONFIRM_RECEIPT = range(4)
 
 # Define your worker's Telegram user ID and your own Telegram user ID
 WORKER_ID = '349002878'
@@ -107,7 +106,7 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
-    return None
+    return UPLOAD_SCREENSHOT  # Update the state
 
 @app.route('/')
 def index():
@@ -127,19 +126,13 @@ def webhook():
     application.process_update(update)
     return "OK", 200
 
-@app.route('/set_webhook', methods=['GET', 'POST'])
-def set_webhook():
-    token = os.getenv("TELEGRAM_TOKEN")
-    url = f"https://cdbs-bot.herokuapp.com/webhook"
-    response = requests.post(
-        f"https://api.telegram.org/bot{token}/setWebhook",
-        data={"url": url}
-    )
-    if response.status_code == 200:
-        return "Webhook set successfully!"
-    else:
-        return "Webhook setting failed!"
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    token = os.getenv("TELEGRAM_TOKEN")
+    application = ApplicationBuilder().token(token).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+
+    application.run_polling()
+    app.run(debug=True)
