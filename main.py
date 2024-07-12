@@ -106,7 +106,7 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
-    return UPLOAD_SCREENSHOT  # Update the state
+    return UPLOAD_SCREENSHOT  # Added return statement
 
 @app.route('/')
 def index():
@@ -134,5 +134,4 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
 
-    application.run_polling()
     app.run(debug=True)
