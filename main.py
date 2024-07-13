@@ -37,6 +37,24 @@ data_bundles = {
     '50GB': 'GHC 247',
 }
 
+@app.route('/')
+def index():
+    return 'Welcome to my Telegram bot!'
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Set up the webhook endpoint for Telegram"""
+    token = os.getenv("TELEGRAM_TOKEN")
+    application = ApplicationBuilder().token(token).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.process_update(update)
+    return "OK", 200
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard = [
         [
@@ -106,32 +124,5 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
 
-    return UPLOAD_SCREENSHOT  # Added return statement
-
-@app.route('/')
-def index():
-    return 'Welcome to my Telegram bot!'
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Set up the webhook endpoint for Telegram"""
-    token = os.getenv("TELEGRAM_TOKEN")
-    application = ApplicationBuilder().token(token).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
-
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.process_update(update)
-    return "OK", 200
-
 if __name__ == "__main__":
-    token = os.getenv("TELEGRAM_TOKEN")
-    application = ApplicationBuilder().token(token).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
-
     app.run(debug=True)
