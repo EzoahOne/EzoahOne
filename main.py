@@ -45,25 +45,11 @@ def index():
 def webhook():
     """Set up the webhook endpoint for Telegram"""
     if request.method == 'POST':
-        update = Update.de_json(request.get_json(force=True))
-        if update:
-            handle_update(update)
+        update = Update.de_json(request.get_json(force=True), bot)
+        dispatcher.process_update(update)
         return 'ok'
-    else:
-        return 'Method not allowed', 405
-
-def handle_update(update: Update):
-    """Process the update"""
-    token = os.getenv("TELEGRAM_TOKEN")
-    application = ApplicationBuilder().token(token).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
-
-    application.process_update(update)
-    logger.info(f"Processed update: {update}")
-
+    
+# Function to start the bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"Received /start command from user {update.message.from_user.id}")
     keyboard = [
@@ -143,4 +129,12 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return CONFIRM_RECEIPT
 
 if __name__ == "__main__":
+    token = os.getenv("TELEGRAM_TOKEN")
+    application = ApplicationBuilder().token(token).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+    
+    # Start the Flask app
     app.run(debug=True)
