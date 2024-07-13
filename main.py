@@ -1,9 +1,9 @@
 import os
 import logging
 import re
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 
 app = Flask(__name__)
 
@@ -14,11 +14,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Define states
-CHOOSE_BUNDLE, ENTER_PHONE, UPLOAD_SCREENSHOT, CONFIRM_RECEIPT = range(4)
+CHOOSE_BUNDLE, ENTER_PHONE, CONFIRM_RECEIPT = range(3)
 
 # Define your worker's Telegram user ID and your own Telegram user ID
-WORKER_ID = '349002878'
-YOUR_ID = '2058207928'
+WORKER_ID = 349002878
+YOUR_ID = 2058207928
 
 # Define your MoMo number
 MOMO_NUMBER = '0543226313'
@@ -41,21 +41,15 @@ data_bundles = {
 def index():
     return 'Welcome to my Telegram bot!'
 
-@app.route('/webhook', methods=['POST'])
+@app.route(f'/{os.getenv("TELEGRAM_TOKEN")}/webhook', methods=['POST'])
 def webhook():
     """Set up the webhook endpoint for Telegram"""
-    if request.method == 'POST':
-        update = request.get_json()
-        if update:
-            update = Update.de_json(update, application.bot)
-            application.process_update(update)
-        return 'OK', 200
-    else:
-        return 'Method Not Allowed', 405
+    update = Update.de_json(request.get_json(force=True), updater.bot)
+    updater.dispatcher.process_update(update)
+    return 'OK'
 
-# Function to start the bot
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    logger.info(f"Received /start command from user {update.message.from_user.id}")
+def start(update, context):
+    """Send a message when the command /start is issued."""
     keyboard = [
         [
             InlineKeyboardButton("10 GB - GHC 72", callback_data='10GB'),
@@ -75,70 +69,67 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('Please choose a data bundle package:', reply_markup=reply_markup)
+    update.message.reply_text('Please choose a data bundle package:', reply_markup=reply_markup)
     return CHOOSE_BUNDLE
 
-async def choose_bundle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+def choose_bundle(update, context):
+    """Save the chosen bundle and ask for phone number."""
     query = update.callback_query
-    await query.answer()
+    query.answer()
 
-    logger.info(f"User {query.from_user.id} chose bundle: {query.data}")
-
-    # Save the selected bundle in user_data
     user_data[query.from_user.id] = {'bundle': query.data, 'price': data_bundles[query.data]}
 
-    await query.edit_message_text(
-        text=f"Selected bundle: {query.data} - {data_bundles[query.data]}\nPlease enter the beneficiary's phone number:")
+    query.edit_message_text(
+        text=f"Selected bundle: {query.data} - {data_bundles[query.data]}\nPlease enter the beneficiary's phone number:"
+    )
     return ENTER_PHONE
 
-async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+def enter_phone(update, context):
+    """Save phone number and send payment details."""
     user_id = update.message.from_user.id
     phone_number = update.message.text
 
-    logger.info(f"User {user_id} entered phone number: {phone_number}")
-
     # Validate phone number (only digits and length check)
     if not re.match(r'^\d+$', phone_number) or len(phone_number) < 7 or len(phone_number) > 15:
-        await update.message.reply_text('Please enter a valid phone number (digits only).')
+        update.message.reply_text('Please enter a valid phone number (digits only).')
         return ENTER_PHONE
 
-    # Get the selected bundle and price from user_data
+    # Get bundle and price from user_data
     bundle = user_data[user_id]['bundle']
     price = user_data[user_id]['price']
 
-    # Save the phone number in user_data
     user_data[user_id]['phone_number'] = phone_number
 
-    # Send the beneficiary number and selected bundle to the worker
+    # Send order details to worker
     worker_message = f"New order received\nBundle: {bundle}\nBeneficiary's phone number: {phone_number}"
     try:
-        await context.bot.send_message(chat_id=WORKER_ID, text=worker_message)
+        context.bot.send_message(chat_id=WORKER_ID, text=worker_message)
         logger.info(f"Sent message to worker: {worker_message}")
     except Exception as e:
         logger.error(f"Failed to send message to worker: {e}")
 
-    # Send the beneficiary number, selected bundle, and price to you
+    # Send order details to user
     user_message = f"New order received\nBundle: {bundle} - {price}\nBeneficiary's phone number: {phone_number}"
     try:
-        await context.bot.send_message(chat_id=YOUR_ID, text=user_message, reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("Payment Made", callback_data=f'payment_{user_id}')]]))
+        context.bot.send_message(chat_id=YOUR_ID, text=user_message, reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Payment Made", callback_data=f'payment_{user_id}')]]
+        ))
         logger.info(f"Sent message to you: {user_message}")
     except Exception as e:
         logger.error(f"Failed to send message to you: {e}")
 
-    # Send MoMo number to the user for payment
-    await update.message.reply_text(
-        f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
+    # Send MoMo number for payment
+    update.message.reply_text(f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
     logger.info(f"Requested payment from user {user_id}")
     return CONFIRM_RECEIPT
 
 if __name__ == "__main__":
     token = os.getenv("TELEGRAM_TOKEN")
-    application = ApplicationBuilder().token(token).build()
+    updater = Updater(token, use_context=True)
     
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+    updater.dispatcher.add_handler(CommandHandler("start", start))
+    updater.dispatcher.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
+    updater.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, enter_phone))
     
-    # Start the Flask app
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
