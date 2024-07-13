@@ -45,10 +45,14 @@ def index():
 def webhook():
     """Set up the webhook endpoint for Telegram"""
     if request.method == 'POST':
-        update = Update.de_json(request.get_json(force=True), bot)
-        dispatcher.process_update(update)
-        return 'ok'
-    
+        update = request.get_json()
+        if update:
+            update = Update.de_json(update, application.bot)
+            application.process_update(update)
+        return 'OK', 200
+    else:
+        return 'Method Not Allowed', 405
+
 # Function to start the bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"Received /start command from user {update.message.from_user.id}")
