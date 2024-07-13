@@ -53,9 +53,11 @@ def webhook():
 
     update = Update.de_json(request.get_json(force=True), application.bot)
     application.process_update(update)
+    logger.info(f"Processed update: {update}")
     return "OK", 200
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger.info(f"Received /start command from user {update.message.from_user.id}")
     keyboard = [
         [
             InlineKeyboardButton("10 GB - GHC 72", callback_data='10GB'),
@@ -82,6 +84,8 @@ async def choose_bundle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     query = update.callback_query
     await query.answer()
 
+    logger.info(f"User {query.from_user.id} chose bundle: {query.data}")
+
     # Save the selected bundle in user_data
     user_data[query.from_user.id] = {'bundle': query.data, 'price': data_bundles[query.data]}
 
@@ -92,6 +96,8 @@ async def choose_bundle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     phone_number = update.message.text
+
+    logger.info(f"User {user_id} entered phone number: {phone_number}")
 
     # Validate phone number (only digits and length check)
     if not re.match(r'^\d+$', phone_number) or len(phone_number) < 7 or len(phone_number) > 15:
@@ -109,6 +115,7 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     worker_message = f"New order received\nBundle: {bundle}\nBeneficiary's phone number: {phone_number}"
     try:
         await context.bot.send_message(chat_id=WORKER_ID, text=worker_message)
+        logger.info(f"Sent message to worker: {worker_message}")
     except Exception as e:
         logger.error(f"Failed to send message to worker: {e}")
 
@@ -117,12 +124,15 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     try:
         await context.bot.send_message(chat_id=YOUR_ID, text=user_message, reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("Payment Made", callback_data=f'payment_{user_id}')]]))
+        logger.info(f"Sent message to you: {user_message}")
     except Exception as e:
         logger.error(f"Failed to send message to you: {e}")
 
     # Send MoMo number to the user for payment
     await update.message.reply_text(
         f'Please make the payment of {price} to the following MoMo number: {MOMO_NUMBER}')
+    logger.info(f"Requested payment from user {user_id}")
+    return CONFIRM_RECEIPT
 
 if __name__ == "__main__":
     app.run(debug=True)
