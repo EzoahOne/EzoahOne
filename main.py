@@ -44,17 +44,18 @@ def index():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Set up the webhook endpoint for Telegram"""
-    token = os.getenv("TELEGRAM_TOKEN")
-    application = ApplicationBuilder().token(token).build()
+    if request.method == 'POST':
+        token = os.getenv("TELEGRAM_TOKEN")
+        application = ApplicationBuilder().token(token).build()
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CallbackQueryHandler(choose_bundle, pattern=r'^\d+GB$'))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone))
 
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.process_update(update)
-    logger.info(f"Processed update: {update}")
-    return "OK", 200
+        update = Update.de_json(request.get_json(force=True), application.bot)
+        application.process_update(update)
+        logger.info(f"Processed update: {update}")
+        return 'ok'
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"Received /start command from user {update.message.from_user.id}")
